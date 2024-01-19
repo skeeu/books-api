@@ -1,7 +1,8 @@
 const reader = require("xlsx");
-const books = []
-const authors = []
-const genres = []
+let books = []
+let authors = []
+let genres = []
+
 try{
     const file = reader.readFile(`./data/books.xlsx`);
     const sheetNames = file.SheetNames
@@ -11,7 +12,7 @@ try{
         arr.forEach((res) => {
             books.push(res)
             authors.push(`${res.Author} (${res.Name})`)
-            genres.push(`${res.Name} (${res.Genre})`)
+            genres.push(`${res.Name} (${res.Genres})`)
         })
     }
 }catch (err){

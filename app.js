@@ -1,11 +1,18 @@
 const express = require('express');
 const morgan = require('morgan')
-const bookController = require('./controllers/bookController')
-const bookModel = require('./models/bookModels')
+const bodyParser = require('body-parser')
+
 const app = express();
+
+const bookRouter = require('./routes/books')
+const authorsRouter = require('./routes/authors')
+const genresRouter = require('./routes/genres')
 
 app.use(morgan('dev'));
 
+app.use(bodyParser.urlencoded({
+    extended: true
+}));
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -19,12 +26,9 @@ app.use((req, res, next) => {
 });
 
 
-app.route('/api/books').get(bookController.getAllBooks).post(bookController.setNewBook);
-app.route('/api/books/byName/:name').get(bookController.getBookByName);
-app.route('/api/books/byPrice/:price').get(bookController.getBookByPrice);
-app.route('/api/books/:id').put(bookController.updateBook).delete(bookController.deleteBook);
-app.route("/api/authors").get(bookController.getAuthors);
-app.route('/api/genres').get(bookController.getGenres);
+app.use('/api/v1/books', bookRouter)
+app.use('/api/v1/authors', authorsRouter)
+app.use('/api/v1/genres', genresRouter)
 
 const port = 3300;
 app.listen(port, () => {

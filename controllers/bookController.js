@@ -1,8 +1,9 @@
-const { books, genres, authors} = require('../models/bookModels');
 const reader = require('xlsx');
-const bookModel = require("../models/bookModels");
-// GET
-const getAllBooks = (req, res) => {
+let { books, genres, authors} = require('../models/bookModels');
+const utils = require('../utils.js')
+
+
+const getBooks = (req, res) => {
     if (books.length === 0){
         return res.status(404).json({
             status: 'Not Found',
@@ -10,107 +11,70 @@ const getAllBooks = (req, res) => {
         })
     }
 
-    res.status(200).json({
-        status: 'success',
-        results: books.length,
-        data: {
-            books,
-        },
-    });
-}
+    const { name, price, offset } = req.query
+    let filteredBooks = JSON.parse(JSON.stringify(books))
 
-const getBookByName = (req, res) => {
-    console.log(req.params);
-
-    const book = books.find((el) => el.Name === req.params.name);
-
-    if (!book) {
-        return res.status(404).json({
-            status: 'fail',
-            message: 'Invalid ID',
+    if (name) {
+        filteredBooks = filteredBooks.filter((el) => {
+            if (typeof el.Name === 'string') {
+                return el.Name.toLowerCase().includes(name.toLowerCase());
+            }
+            return false;
         });
+
+        if (filteredBooks.length === 0) {
+            return res.status(404).json({
+                status: 'Not found',
+                message: `No books with name: ${name}`,
+            });
+        }
+    }
+
+    if (price) {
+        filteredBooks = filteredBooks.filter(el => parseFloat(el.Price) === parseFloat(price))
+
+        if (filteredBooks.length === 0) {
+            return res.status(404).json({
+                status: 'Not found',
+                message: `No books with price: ${price}`,
+            });
+        }
+    }
+
+    if (offset) {
+        const numericOffset = parseInt(offset);
+        filteredBooks = filteredBooks.slice(numericOffset);
     }
 
     res.status(200).json({
         status: 'success',
+        results: filteredBooks.length,
         data: {
-            book,
+            filteredBooks,
         },
     });
 }
 
-const getBookByPrice = (req, res) => {
-    const data = []
-    console.log(req.params);
 
-    books.forEach((book) => {
-        if(book.Price === Number(req.params.price)){
-            data.push(book)
-        }
-    })
 
-    if (data.length == 0) {
-        return res.status(404).json({
-            status: 'fail',
-            message: 'Invalid ID',
-        });
-    }
 
-    res.status(200).json({
-        status: 'success',
-        data: {
-            data,
-        },
-    });
-}
+const createBook = (req,res) => {
+    const id = Number(books[books.length - 1].id) + 1;
+    const { Name, Author, PublishYear, PageCount, Price } = req.body;
 
-const validateFields = (data, fieldRules) => {
-    for (const [field, rules] of Object.entries(fieldRules)) {
-        const value = data[field];
-
-        if (value === undefined) {
-            return `${field} is required.`;
-        }
-
-        if (rules.min && value.length < rules.min) {
-            return `${field} should be at least ${rules.min} characters long.`;
-        }
-
-        if (rules.max && value.length > rules.max) {
-            return `${field} should be at most ${rules.max} characters long.`;
-        }
-
-        if (rules.integer && !Number.isInteger(value)) {
-            return `${field} should be an integer.`;
-        }
-
-        if (rules.minValue && value < rules.minValue) {
-            return `${field} should be greater than or equal to ${rules.minValue}.`;
-        }
-
-        if (rules.maxValue && value > rules.maxValue) {
-            return `${field} should be less than or equal to ${rules.maxValue}.`;
-        }
-    }
-
-    return null; // No validation errors
-};
-
-// POST
-const setNewBook = (req,res) => {
-    const NewID = Number(books[books.length - 1].id) + 1;
-    const newBook = Object.assign({ id: NewID }, req.body);
-    const validationError = validateFields(newBook, {
+    const newBook = { id, Name, Author, PublishYear, PageCount, Price }
+    const validationError = utils.validateFields(newBook, {
         Name: { min: 2, max: 30 },
         Author: { min: 2, max: 30 },
         PublishYear: { integer: true, minValue: 1900, maxValue: 2024 },
         PageCount: { integer: true, minValue: 3, maxValue: 1300 },
         Price: { minValue: 0, maxValue: 150000 }
     });
+    console.log(validationError)
 
     if (validationError) {
-        return res.status(404).json({
-            status: 'fail',
+        return res.status(400).json({
+            status: 'error',
             message: 'Data Validation error'
         });
     }
@@ -118,7 +82,6 @@ const setNewBook = (req,res) => {
     books.push(newBook);
 
     const file = reader.readFile(`./data/books.xlsx`);
-    const sheets = file.Sheets
     reader.utils.sheet_add_json(file.Sheets["Worksheet"], books)
     reader.writeFile(file, `./data/books.xlsx`)
     res.status(201).json({
@@ -129,52 +92,46 @@ const setNewBook = (req,res) => {
     });
 }
 
-// PUT
-const updateBook = (req,res) => {
-    const id = req.params.id;
-    const newBook = Object.assign({ id: id }, req.body);
+const updateBook = (req, res) => {
+    const { bookId } = req.params
+    const { Name, Author, PublishYear, PageCount, Price } = req.body;
 
-    const validationError = validateFields(newBook, {
+    const newBook = { id: parseInt(bookId), Name, Author, PublishYear, PageCount, Price }
+    const validationError = utils.validateFields(newBook, {
         Name: { min: 2, max: 30 },
         Author: { min: 2, max: 30 },
         PublishYear: { integer: true, minValue: 1900, maxValue: 2024 },
         PageCount: { integer: true, minValue: 3, maxValue: 1300 },
         Price: { minValue: 0, maxValue: 150000 }
     });
+    console.log(validationError)
 
-    if(validationError) {
-        return res.status(404).json({
-            status: 'fail',
+    if (validationError) {
+        return res.status(400).json({
+            status: 'error',
             message: 'Data Validation error'
         });
     }
 
-    books[id-1] = newBook;
+    books = books.map(book => String(book.id) === bookId ? newBook : book)
 
     const file = reader.readFile(`./data/books.xlsx`);
-    const sheets = file.Sheets
     reader.utils.sheet_add_json(file.Sheets["Worksheet"], books)
     reader.writeFile(file, `./data/books.xlsx`)
-    res.status(204).json({
+    res.status(200).json({
         status: 'success',
         data: {
             book: newBook,
         },
     });
 }
-// DELETE
 const deleteBook = (req, res) => {
-    const id = req.params.id
-    books.splice(id-1, 1)
-    for (let i = id-1; i < books.length; i++) {
-        if(i < books.length) {
-            books[i].id -= 1;
-        }
-    }
-    const ws = reader.utils.json_to_sheet(books)
-    const wb = reader.utils.book_new();
-    reader.utils.book_append_sheet(wb, ws, 'Worksheet');
-    reader.writeFile(wb, `./data/books.xlsx`)
+    const { bookId } = req.params
+    books = books.filter(book => String(book.id) !== bookId)
+
+    const file = reader.readFile(`./data/books.xlsx`);
+    reader.utils.sheet_add_json(file.Sheets["Worksheet"], books)
+    reader.writeFile(file, `./data/books.xlsx`)
     res.status(200).json({
         status: 'deleted successfully',
         data: {
@@ -182,22 +139,10 @@ const deleteBook = (req, res) => {
         },
     });
 }
-const getAuthors = (req, res) => {
-    res.send(authors)
-}
-
-const getGenres = (req, res) => {
-    res.send(genres)
-}
-
 
 module.exports = {
-    getAllBooks,
-    getBookByName,
-    getBookByPrice,
-    setNewBook,
+    getBooks,
+    createBook,
     updateBook,
     deleteBook,
-    getAuthors,
-    getGenres
 };
